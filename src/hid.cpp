@@ -34,7 +34,27 @@ std::vector<HidColl> EnumHid() {
         HIDD_ATTRIBUTES a{ sizeof(a) };
         if (HidD_GetAttributes(h, &a)) { c.vid = a.VendorID; c.pid = a.ProductID; }
         PHIDP_PREPARSED_DATA pp;
-        if (HidD_GetPreparsedData(h, &pp)) { HidP_GetCaps(pp, &c.caps); HidD_FreePreparsedData(pp); }
+        if (HidD_GetPreparsedData(h, &pp)) {
+            HidP_GetCaps(pp, &c.caps);
+            // The Hawk USB collection numbers its reports; remember the first id of each direction so
+            // drivers can address the right report and strip the id from replies.
+            auto firstId = [&](HIDP_REPORT_TYPE type, USHORT values, USHORT buttons) -> BYTE {
+                if (values) {
+                    std::vector<HIDP_VALUE_CAPS> caps(values);
+                    USHORT n = values;
+                    if (HidP_GetValueCaps(type, caps.data(), &n, pp) == HIDP_STATUS_SUCCESS && n) return caps[0].ReportID;
+                }
+                if (buttons) {
+                    std::vector<HIDP_BUTTON_CAPS> caps(buttons);
+                    USHORT n = buttons;
+                    if (HidP_GetButtonCaps(type, caps.data(), &n, pp) == HIDP_STATUS_SUCCESS && n) return caps[0].ReportID;
+                }
+                return 0;
+            };
+            c.inId = firstId(HidP_Input, c.caps.NumberInputValueCaps, c.caps.NumberInputButtonCaps);
+            c.outId = firstId(HidP_Output, c.caps.NumberOutputValueCaps, c.caps.NumberOutputButtonCaps);
+            HidD_FreePreparsedData(pp);
+        }
         CloseHandle(h);
         std::wstring lower = c.path;
         for (auto& ch : lower) ch = towlower(ch);

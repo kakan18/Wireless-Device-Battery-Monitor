@@ -78,6 +78,7 @@ std::vector<DeviceStatus> PollAllDevices() {
     PollRawm(ctx);
     PollAkko(ctx);
     PollRongyuan(ctx);
+    PollHawk(ctx);       // before Sonix: the same 0C45:FEFE receiver also ships with AJAZZ / AULA keyboards; also reads the USB cable
     PollSonix(ctx);
     PollViaDongle(ctx);
     PollSemico(ctx);

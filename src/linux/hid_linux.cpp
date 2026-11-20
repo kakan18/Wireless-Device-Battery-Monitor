@@ -36,16 +36,19 @@ namespace {
 
 struct ReportInfo {
     int in = 0, out = 0, feat = 0;
+    int inId = 0, outId = 0;  // first report id of each direction (0: unnumbered)
     USHORT usagePage = 0, usage = 0;
 };
 using ReportBits = std::map<int, std::array<int, 3>>;  // report id -> {input, output, feature} bits
 
 void FinalizeCollection(ReportInfo& r, const ReportBits& bits, bool hasIds) {
+    bool inSet = false, outSet = false;
     for (const auto& [id, arr] : bits) {
-        (void)id;
         r.in = std::max(r.in, (arr[0] + 7) / 8 + (hasIds ? 1 : 0));
         r.out = std::max(r.out, (arr[1] + 7) / 8 + (hasIds ? 1 : 0));
         r.feat = std::max(r.feat, (arr[2] + 7) / 8 + (hasIds ? 1 : 0));
+        if (!inSet && arr[0] > 0) { r.inId = id; inSet = true; }
+        if (!outSet && arr[1] > 0) { r.outId = id; outSet = true; }
     }
 }
 
@@ -204,6 +207,8 @@ std::vector<HidColl> EnumHid() {
             col.caps.InputReportByteLength = (USHORT)info.in;
             col.caps.OutputReportByteLength = (USHORT)info.out;
             col.caps.FeatureReportByteLength = (USHORT)info.feat;
+            col.inId = (BYTE)info.inId;
+            col.outId = (BYTE)info.outId;
             out.push_back(std::move(col));
         }
     }

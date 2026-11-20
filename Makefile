@@ -82,6 +82,8 @@ test: test-update-core test-update-win test-update-signature
 	./build/alienware_driver_test.exe
 	$(CXX) $(CXXFLAGS) tests/mchose_modern_driver_test.cpp src/drivers/mchose_modern.cpp -o build/mchose_modern_driver_test.exe
 	./build/mchose_modern_driver_test.exe
+	$(CXX) $(CXXFLAGS) tests/hawk_driver_test.cpp src/drivers/hawk.cpp -o build/hawk_driver_test.exe
+	./build/hawk_driver_test.exe
 	$(CXX) $(CXXFLAGS) tests/vgn_driver_test.cpp src/drivers/vgn.cpp -o build/vgn_driver_test.exe
 	./build/vgn_driver_test.exe
 	$(CXX) $(CXXFLAGS) tests/vaxee_driver_test.cpp src/drivers/vaxee.cpp -o build/vaxee_driver_test.exe

@@ -36,6 +36,7 @@ struct HidColl {
     USHORT vid = 0, pid = 0;
     int iface = -1;  // USB interface number (MI_xx in the path), -1 when unknown
     HIDP_CAPS caps{};
+    BYTE inId = 0, outId = 0;  // report id of the first input / output report (0: unnumbered)
     USHORT page() const { return caps.UsagePage; }
     USHORT usage() const { return caps.Usage; }
     USHORT inLen() const { return caps.InputReportByteLength; }
