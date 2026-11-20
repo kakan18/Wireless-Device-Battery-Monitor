@@ -55,8 +55,9 @@ the driver uses the first input/output report id of the collection and strips it
 The level is reported only for a live 2.4 GHz reading. In USB mode Hawk Hub treats the level as
 not meaningful and shows only the charge state; this driver does the same (percentage -1, with
 charging or full set). The USB keyboard is preferred when the cable and the receiver are both
-attached, and the receiver is then claimed so the keyboard is not listed twice. The last value is
-kept for up to 30 minutes when an idle keyboard misses a poll.
+attached, and the receiver is then claimed so the keyboard is not listed twice. When no reply
+arrives at all, the entry is kept for up to 30 minutes and shown as asleep (with the last value),
+so the keyboard does not disappear from the tray over a single missed poll.
 
 ## Source and verification
 
@@ -65,3 +66,8 @@ come from the HK500 adapter in the installed Hawk Hub Electron bundle (`app.asar
 bundle: `GET_DEVICE_INFO`, `HK500_DEVICE_IDS`, `commandUsagePageFor`, `getBatteryStatus`). The query
 was confirmed on an HK510 receiver: it answered with `0C45:8006`, work mode 2, 87 % and charge
 state 0. The USB path is implemented from the same code but has not been exercised on hardware yet.
+
+The receiver sometimes ignores a whole poll even while the keyboard is in use: 5 of 30 first
+requests went unanswered. Sending the same request again 100 ms later answered 30 of 30 times, so
+each command is retried once (500 ms per attempt). Before that retry, a single missed poll made
+the app show the keyboard as asleep until the next successful poll.

@@ -47,7 +47,10 @@ constexpr BYTE kReplyMarker = 0x55;
 constexpr BYTE kGetDeviceInfo = 0x10;
 constexpr int kFrameHeader = 8;
 constexpr int kInfoLen = 56;
-constexpr int kDeadlineMs = 1000;  // the keyboard answers within a few ms when it is awake
+// The receiver occasionally ignores a whole poll (5 of 30 first requests in a live test). A retry
+// 100 ms later answered every time, so each attempt gets 500 ms and the driver retries once.
+constexpr int kAttemptMs = 500;
+constexpr int kRetryDelayMs = 100;
 
 struct Target {
     USHORT pid;
@@ -87,12 +90,12 @@ bool SendFrame(HidDev& d, const HidColl& c, int chunk, int addr, bool last) {
 // Collects every reply chunk and copies its payload into the 56-byte block. Returns false on
 // timeout or when a chunk is missing. Read() strips a leading zero report id only, so a numbered
 // collection returns its id first and the frame starts one byte later.
-bool ReadInfo(HidDev& d, const HidColl& c, int payload, int frames, std::vector<BYTE>& info) {
+bool ReadInfo(HidDev& d, const HidColl& c, int payload, int frames, std::vector<BYTE>& info, int timeoutMs) {
     info.assign(kInfoLen, 0);
     const int off = c.inId ? 1 : 0;
     const unsigned want = (1u << frames) - 1;
     unsigned got = 0;
-    const ULONGLONG end = GetTickCount64() + kDeadlineMs;
+    const ULONGLONG end = GetTickCount64() + timeoutMs;
     while (got != want) {
         LONGLONG left = (LONGLONG)end - (LONGLONG)GetTickCount64();
         if (left <= 0) return false;
@@ -115,7 +118,7 @@ bool ReadInfo(HidDev& d, const HidColl& c, int payload, int frames, std::vector<
     return true;
 }
 
-bool QueryInfo(HidDev& d, const HidColl& c, std::vector<BYTE>& info) {
+bool QueryInfo(HidDev& d, const HidColl& c, std::vector<BYTE>& info, int timeoutMs) {
     int payload = (int)c.outLen() - 1 - kFrameHeader;
     if (payload < 8) return false;
     int frames = (kInfoLen + payload - 1) / payload;
@@ -126,7 +129,7 @@ bool QueryInfo(HidDev& d, const HidColl& c, std::vector<BYTE>& info) {
         int take = std::min(payload, kInfoLen - addr);
         if (!SendFrame(d, c, take, addr, i == frames - 1)) return false;
     }
-    return ReadInfo(d, c, payload, frames, info);
+    return ReadInfo(d, c, payload, frames, info, timeoutMs);
 }
 
 bool PollTarget(PollContext& ctx, const Target& t) {
@@ -138,7 +141,10 @@ bool PollTarget(PollContext& ctx, const Target& t) {
         HidDev d;
         if (!d.Open(*c)) continue;
         std::vector<BYTE> info;
-        if (!QueryInfo(d, *c, info)) continue;
+        if (!QueryInfo(d, *c, info, kAttemptMs)) {
+            Sleep(kRetryDelayMs);
+            if (!QueryInfo(d, *c, info, kAttemptMs)) continue;
+        }
         USHORT vid = (USHORT)(info[4] | (info[5] << 8));
         USHORT pid = (USHORT)(info[6] | (info[7] << 8));
         if (vid != kHawkVid || !IsHawkModel(pid)) continue;

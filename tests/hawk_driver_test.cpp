@@ -12,6 +12,7 @@ static std::deque<std::vector<BYTE>> replies;
 static std::vector<std::vector<BYTE>> writes;
 static int opens;
 static bool openOk = true, writeOk = true;
+static int failWrites;  // fail this many writes first, to exercise the retry
 static std::wstring productName;
 
 bool HidDev::Open(const HidColl& c) { ++opens; c_ = c; return openOk; }
@@ -19,6 +20,7 @@ void HidDev::Close() {}
 void HidDev::Flush() {}
 bool HidDev::Write(const std::vector<BYTE>& data, int) {
     writes.push_back(data);
+    if (failWrites > 0) { --failWrites; return false; }
     return writeOk;
 }
 int HidDev::Read(std::vector<BYTE>& out, int timeoutMs) {
@@ -123,6 +125,20 @@ int main() {
     assert(writes[2] == Frame(33, 0, 8, 48, true));
     PollHawk(ctx);
     assert(opens == 1 && writes.size() == 3);  // already claimed: no second query
+
+    // A failed first query is retried once; the receiver answers the second attempt.
+    {
+        PollContext retry;
+        opens = 0;
+        writes.clear();
+        QueueReplies(Info(), Dongle());
+        failWrites = 1;  // the first SendFrame fails, so the whole first query is abandoned
+        retry.colls = { Dongle() };
+        PollHawk(retry);
+        failWrites = 0;
+        assert(retry.out.size() == 1 && retry.out[0].percent == 86);
+        assert(writes.size() == 4);  // 1 failed frame + the 3 frames of the retry
+    }
 
     // USB cable: one 65-byte frame. In USB mode the vendor app shows no battery level, only the
     // charge state, so the entry stays connected with an unknown percentage.
